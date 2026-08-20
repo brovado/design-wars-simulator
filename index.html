@@ -58,10 +58,14 @@
   </main>
   <script src="script.js"></script>
 
-  <!-- Matter velocity compatibility fix and explicit initial direction choice. -->
   <script>
-    // Phaser's Matter integration expects velocity changes through its Matter
-    // body API. Directly replacing body.velocity was leaving the designers still.
+    // -----------------------------------------------------------------------
+    // PHYSICS OVERRIDE
+    // -----------------------------------------------------------------------
+    // The designers should behave like the balls in the satisfying physics
+    // videos: constant speed, clean reflection, no wall-hugging and only a
+    // tiny change of direction when an impact occurs.
+
     setConstantSpeed = function (designer, angle) {
       const body = designer && designer.gameObject && designer.gameObject.body;
       if (!body || !scene || !scene.matter) return;
@@ -71,7 +75,6 @@
         x: Math.cos(angle) * CONFIG.designerCruiseSpeed,
         y: Math.sin(angle) * CONFIG.designerCruiseSpeed
       });
-      body.speed = CONFIG.designerCruiseSpeed;
     };
 
     maintainSpeed = function (designer) {
@@ -80,39 +83,150 @@
 
       body.isSleeping = false;
       const speed = Math.hypot(body.velocity.x, body.velocity.y);
-
-      if (speed < 0.001) {
-        setConstantSpeed(designer, Phaser.Math.FloatBetween(0, Math.PI * 2));
-        return;
-      }
+      if (speed < 0.001) return;
 
       const scale = CONFIG.designerCruiseSpeed / speed;
       scene.matter.body.setVelocity(body, {
         x: body.velocity.x * scale,
         y: body.velocity.y * scale
       });
-      body.speed = CONFIG.designerCruiseSpeed;
     };
 
+    // Pick the initial direction from the first target. After launch this is
+    // NOT called continuously. Direction is changed only on impact.
     launchDesigners = function () {
       designers.forEach(function (designer) {
-        // Make one initial target decision. This chooses the launch direction.
-        // Once moving, direction changes only when a wall or another designer
-        // produces a collision.
         chooseTarget(designer);
 
-        let angle;
+        let angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
         if (designer.target && designer.target.gameObject && designer.target.gameObject.active) {
           const dx = designer.target.gameObject.x - designer.gameObject.x;
           const dy = designer.target.gameObject.y - designer.gameObject.y;
           angle = Math.atan2(dy, dx);
-        } else {
-          angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
         }
 
         setConstantSpeed(designer, angle);
         if (typeof wakeDesigner === 'function') wakeDesigner(designer);
       });
+    };
+
+    function reflectVelocityFromNormal(designer, normalX, normalY) {
+      const body = designer.gameObject.body;
+      if (!body) return;
+
+      let vx = body.velocity.x;
+      let vy = body.velocity.y;
+      const speed = Math.hypot(vx, vy) || CONFIG.designerCruiseSpeed;
+
+      // Reflect the incoming velocity around the collision normal.
+      const dot = vx * normalX + vy * normalY;
+      vx = vx - 2 * dot * normalX;
+      vy = vy - 2 * dot * normalY;
+
+      // Never allow a near-tangent collision to turn into wall hugging.
+      // If the reflected vector still points into the wall, force it outward.
+      if (vx * normalX + vy * normalY < 0.05 * speed) {
+        vx += normalX * speed * 0.35;
+        vy += normalY * speed * 0.35;
+      }
+
+      const reflectedAngle = Math.atan2(vy, vx);
+
+      // Steering is deliberately tiny and only happens here, at impact.
+      let finalAngle = reflectedAngle;
+      if (!designer.target || designer.target.collected || !designer.target.gameObject.active) {
+        chooseTarget(designer);
+      }
+
+      if (designer.target && designer.target.gameObject.active) {
+        const dx = designer.target.gameObject.x - designer.gameObject.x;
+        const dy = designer.target.gameObject.y - designer.gameObject.y;
+        const targetAngle = Math.atan2(dy, dx);
+        const difference = Phaser.Math.Angle.Wrap(targetAngle - reflectedAngle);
+        // Maximum steering at an impact is intentionally small.
+        const nudge = Phaser.Math.Clamp(difference, -0.10, 0.10);
+        finalAngle = reflectedAngle + nudge;
+      }
+
+      scene.matter.body.setVelocity(body, {
+        x: Math.cos(finalAngle) * CONFIG.designerCruiseSpeed,
+        y: Math.sin(finalAngle) * CONFIG.designerCruiseSpeed
+      });
+      body.isSleeping = false;
+    }
+
+    // Replace the collision handler so wall/designer impacts explicitly create
+    // a clean bounce. Decor remains static and is still collected normally.
+    handleCollisions = function (event) {
+      if (!running) return;
+
+      for (const pair of event.pairs) {
+        const a = pair.bodyA.gameObject;
+        const b = pair.bodyB.gameObject;
+        if (!a || !b) continue;
+
+        const designerA = a.designer;
+        const designerB = b.designer;
+        const itemA = a.item;
+        const itemB = b.item;
+
+        // Designer hits designer: Matter handles the physical separation, then
+        // both balls receive a tiny post-impact directional correction.
+        if (designerA && designerB) {
+          if (pair.collision && pair.collision.normal) {
+            reflectVelocityFromNormal(designerA, pair.collision.normal.x, pair.collision.normal.y);
+            reflectVelocityFromNormal(designerB, -pair.collision.normal.x, -pair.collision.normal.y);
+          } else {
+            reflectVelocityFromNormal(designerA, 0, 1);
+            reflectVelocityFromNormal(designerB, 0, -1);
+          }
+          continue;
+        }
+
+        // Designer hits an arena wall. Use the actual collision normal rather
+        // than trying to infer a horizontal/vertical bounce from position.
+        const designer = designerA || designerB;
+        const wall = (a && a.isArenaWall) ? a : ((b && b.isArenaWall) ? b : null);
+        if (designer && wall) {
+          let nx = 0;
+          let ny = 0;
+
+          if (pair.collision && pair.collision.normal) {
+            nx = pair.collision.normal.x;
+            ny = pair.collision.normal.y;
+            // Matter's normal is bodyA -> bodyB. We need the normal pointing
+            // away from the wall and toward the designer.
+            if (designerB) {
+              nx = -nx;
+              ny = -ny;
+            }
+          }
+
+          if (Math.hypot(nx, ny) < 0.1) {
+            const dx = designer.gameObject.x - wall.x;
+            const dy = designer.gameObject.y - wall.y;
+            const length = Math.hypot(dx, dy) || 1;
+            nx = dx / length;
+            ny = dy / length;
+          }
+
+          reflectVelocityFromNormal(designer, nx, ny);
+          continue;
+        }
+
+        // Decor collection is unchanged.
+        let collector = null;
+        let item = null;
+        if (designerA && itemB) {
+          collector = designerA;
+          item = itemB;
+        } else if (designerB && itemA) {
+          collector = designerB;
+          item = itemA;
+        }
+
+        if (collector && item && !item.collected) collectItem(collector, item);
+      }
     };
   </script>
 </body>
