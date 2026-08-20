@@ -57,5 +57,63 @@
     </div>
   </main>
   <script src="script.js"></script>
+
+  <!-- Matter velocity compatibility fix and explicit initial direction choice. -->
+  <script>
+    // Phaser's Matter integration expects velocity changes through its Matter
+    // body API. Directly replacing body.velocity was leaving the designers still.
+    setConstantSpeed = function (designer, angle) {
+      const body = designer && designer.gameObject && designer.gameObject.body;
+      if (!body || !scene || !scene.matter) return;
+
+      body.isSleeping = false;
+      scene.matter.body.setVelocity(body, {
+        x: Math.cos(angle) * CONFIG.designerCruiseSpeed,
+        y: Math.sin(angle) * CONFIG.designerCruiseSpeed
+      });
+      body.speed = CONFIG.designerCruiseSpeed;
+    };
+
+    maintainSpeed = function (designer) {
+      const body = designer && designer.gameObject && designer.gameObject.body;
+      if (!body || !scene || !scene.matter) return;
+
+      body.isSleeping = false;
+      const speed = Math.hypot(body.velocity.x, body.velocity.y);
+
+      if (speed < 0.001) {
+        setConstantSpeed(designer, Phaser.Math.FloatBetween(0, Math.PI * 2));
+        return;
+      }
+
+      const scale = CONFIG.designerCruiseSpeed / speed;
+      scene.matter.body.setVelocity(body, {
+        x: body.velocity.x * scale,
+        y: body.velocity.y * scale
+      });
+      body.speed = CONFIG.designerCruiseSpeed;
+    };
+
+    launchDesigners = function () {
+      designers.forEach(function (designer) {
+        // Make one initial target decision. This chooses the launch direction.
+        // Once moving, direction changes only when a wall or another designer
+        // produces a collision.
+        chooseTarget(designer);
+
+        let angle;
+        if (designer.target && designer.target.gameObject && designer.target.gameObject.active) {
+          const dx = designer.target.gameObject.x - designer.gameObject.x;
+          const dy = designer.target.gameObject.y - designer.gameObject.y;
+          angle = Math.atan2(dy, dx);
+        } else {
+          angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        }
+
+        setConstantSpeed(designer, angle);
+        if (typeof wakeDesigner === 'function') wakeDesigner(designer);
+      });
+    };
+  </script>
 </body>
 </html>
