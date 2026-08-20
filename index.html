@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101010">
   <title>Design Wars Simulator</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
@@ -10,20 +11,49 @@
 <body>
   <main class="app-shell">
     <header class="topbar">
-      <div><div class="eyebrow">SIMULATION CONTENT GENERATOR</div><h1>DESIGN WARS</h1></div>
-      <div class="controls"><button id="startBtn">START SIMULATION</button><button id="resetBtn" class="secondary">RESET</button></div>
+      <div>
+        <div class="eyebrow">SIMULATION CONTENT GENERATOR</div>
+        <h1>DESIGN WARS</h1>
+      </div>
+      <div class="controls">
+        <button id="startBtn">START SIMULATION</button>
+        <button id="resetBtn" class="secondary">RESET</button>
+      </div>
     </header>
+
     <section class="hud">
       <div class="hud-card"><span>TIME</span><strong id="timer">60.0</strong></div>
       <div class="hud-card"><span>PHASE</span><strong id="phase">READY</strong></div>
       <div class="hud-card leader-card"><span>LEADER</span><strong id="leader">—</strong></div>
+      <div class="hud-card chaos-card"><span>CHAOS</span><strong id="chaos">0%</strong></div>
     </section>
+
     <section class="simulation-layout">
       <div id="game-container" class="arena-wrap"></div>
-      <aside class="leaderboard-panel"><div class="panel-title">LIVE STANDINGS</div><div id="leaderboard"></div><div class="legend-note">Four philosophies enter. Furniture does not stand a chance.</div></aside>
+      <aside class="sidebar">
+        <div class="leaderboard-panel">
+          <div class="panel-title">LIVE STANDINGS</div>
+          <div id="leaderboard"></div>
+        </div>
+        <div class="event-panel">
+          <div class="panel-title">ARENA FEED</div>
+          <div id="eventFeed" class="event-feed"><div class="feed-empty">Waiting for bad decisions...</div></div>
+        </div>
+        <div class="legend-note">Four philosophies enter. Furniture does not stand a chance.</div>
+      </aside>
     </section>
+
     <div id="resultOverlay" class="result-overlay hidden">
-      <div class="result-card"><div class="eyebrow">SIMULATION COMPLETE</div><div class="winner-label">WINNER</div><h2 id="winnerName">—</h2><div id="winnerScore" class="winner-score">0</div><div class="result-subtitle">TOP 5 COLLECTED ITEMS</div><ol id="topItems"></ol><button id="againBtn">RUN IT AGAIN</button></div>
+      <div class="result-card">
+        <div class="eyebrow">SIMULATION COMPLETE</div>
+        <div class="winner-label">WINNER</div>
+        <h2 id="winnerName">—</h2>
+        <div id="winnerScore" class="winner-score">0</div>
+        <div id="winnerSummary" class="winner-summary"></div>
+        <div class="result-subtitle">TOP 5 COLLECTED ITEMS</div>
+        <ol id="topItems"></ol>
+        <button id="againBtn">RUN IT AGAIN</button>
+      </div>
     </div>
   </main>
   <script src="script.js"></script>
