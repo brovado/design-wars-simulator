@@ -10,15 +10,15 @@ Designers do **not** pathfind to furniture.
 
 Their movement is a hybrid of:
 
-- constant cruise speed
+- constant 34 px/s cruise speed
 - Matter physics and wall collisions
 - short target locks
 - preference-weighted target selection
-- tiny steering pulses
+- weak steering pulses applied to the existing velocity
 - small random steering noise
 - collision disruption
 
-The physics remains dominant. Steering nudges the current velocity and then normalizes it back to cruise speed; it never replaces the current trajectory with a direct route to an item.
+Physics remains dominant. A steering pulse nudges the current velocity and then normalizes it back to cruise speed; it never replaces the current trajectory with a direct route to an item.
 
 A designer can therefore want a chair, bend toward it, overshoot it, bounce off a wall, collide with another designer and end up pursuing something completely different.
 
@@ -41,11 +41,11 @@ Each candidate receives a desirability score based on:
 - distance penalty
 - rarity bonus
 - target persistence
-- random variation
+- seeded random variation
 
-If no preferred object is nearby, the designer chooses from any available object. This prevents designers from becoming stationary when their ideal furniture is elsewhere.
+The highest desirability object normally wins, but the random term means a designer can occasionally choose a slightly worse opportunity. If no preferred object is within range, the designer selects any available object rather than becoming stationary.
 
-Targets have a short lock, generally 2–4 seconds. A target can disappear when another designer collects it, or a collision can cause the designer to reconsider it.
+Targets have a short lock. Rustic, Coastal and the other personalities can therefore commit to a target long enough to visibly pursue it, while collisions, collection, or lock expiry can cause a new decision.
 
 ## Steering
 
@@ -63,16 +63,21 @@ normalize back to cruise speed
 
 The designer never rotates instantly toward the target and never slows down to make a turn.
 
-There are two sources of directional change:
+Directional change comes from three things:
 
-1. tiny steering pulses while travelling
-2. a small additional correction immediately after a physical wall/designer collision
+1. Matter physics and natural bouncing
+2. tiny steering pulses while travelling
+3. a small additional correction immediately after a physical wall/designer collision
 
-Designer collisions remain physical. A collision has a small chance to disrupt the current target and create a new decision.
+Designer collisions remain physical. A collision has a personality-dependent chance to disrupt the current target and create a new decision.
+
+## Visual feedback
+
+The current target receives a very subtle highlight and, when nearby enough to matter, a faint line from the designer to the target. Collision impacts briefly pulse the designer. These effects are intentionally restrained so the primitive physics remains the star of the short-form video.
 
 ## Tuning parameters
 
-The main tuning values live at the top of `script.js` in `CONFIG` and the designer definitions.
+The main developer tuning values live at the top of `script.js` in `CONFIG` and the designer definitions.
 
 Useful controls include:
 
@@ -95,7 +100,7 @@ Each designer also exposes its own steering strength, randomness, persistence, r
 
 `RERUN SAME SEED` repeats the same initial random sequence, making it useful for comparing movement changes during development.
 
-The seed is shown in the final result summary.
+The seed is shown in the final result summary. The simulation uses a seeded RNG for target selection, item generation and movement randomness so repeated runs are meaningfully comparable.
 
 ## Escalation
 
