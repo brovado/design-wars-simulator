@@ -1,1 +1,247 @@
-document.getElementById('startBtn').onclick=()=>{new Phaser.Game({type:Phaser.AUTO,width:1000,height:600,parent:document.body,physics:{default:'arcade',arcade:{debug:false}},scene:{create:create,update:update}})};let designers=[];function create(){const colors=[0x8b5a2b,0xffffff,0x800080,0x3399ff];['RUS','MIN','MAX','COA'].forEach((n,i)=>{let c=this.add.circle(100+i*100,100,20,colors[i]);this.physics.add.existing(c);c.body.setCollideWorldBounds(true,1,1).setBounce(1,1).setVelocity(Phaser.Math.Between(-150,150),Phaser.Math.Between(-150,150));c.score=0;c.name=n;designers.push(c);});this.physics.world.setBoundsCollision(true,true,true,true);}function update(){document.getElementById('leaderboard').innerHTML=designers.map(d=>d.name+': '+d.score).join('<br>');}
+const CONFIG = {
+  width: 960,
+  height: 620,
+  duration: 60,
+  designerRadius: 25,
+  itemSize: 30,
+  maxSpeed: 260,
+  steering: 0.0009,
+  attractionRange: 340,
+  startingItems: 22
+};
+
+const DESIGNERS = [
+  {name:'Rustic', short:'RUS', color:0x9a6338, css:'#9a6338', weights:{Wood:15,Natural:10,Handmade:8,Warm:7,Plastic:-10,Blue:3,Decorative:2}},
+  {name:'Minimalist', short:'MIN', color:0xf2f2f2, css:'#f2f2f2', weights:{Simple:15,Neutral:12,Clean:10,Wood:3,Decorative:-4,Patterned:-3,Colorful:-4}},
+  {name:'Maximalist', short:'MAX', color:0x9b55d6, css:'#9b55d6', weights:{Decorative:15,Colorful:12,Patterned:11,Handmade:5,Simple:2,Neutral:-2,Clean:-1}},
+  {name:'Coastal', short:'COA', color:0x43a9e8, css:'#43a9e8', weights:{Blue:15,White:10,Natural:9,Light:9,Clean:3,Wood:2,Dark:-8}}
+];
+
+const ITEM_TYPES = [
+  {abbr:'CHR',name:'Chair',category:'Furniture',color:0xb78655,tags:['Wood','Warm','Handmade'],points:12},
+  {abbr:'LMP',name:'Lamp',category:'Lighting',color:0xf0d56b,tags:['Warm','Simple','Clean'],points:10},
+  {abbr:'RUG',name:'Rug',category:'Textile',color:0x9e6b8c,tags:['Patterned','Colorful','Warm'],points:14},
+  {abbr:'VSE',name:'Vase',category:'Decor',color:0x68a7a0,tags:['Decorative','Natural','Clean'],points:11},
+  {abbr:'PLT',name:'Plant',category:'Natural',color:0x5da35d,tags:['Natural','Light'],points:16},
+  {abbr:'ART',name:'Art',category:'Decor',color:0xe07b58,tags:['Decorative','Colorful','Patterned'],points:18},
+  {abbr:'MIR',name:'Mirror',category:'Decor',color:0xa9c6d9,tags:['Clean','Simple','White'],points:15},
+  {abbr:'TBL',name:'Table',category:'Furniture',color:0x9a6338,tags:['Wood','Natural','Warm'],points:17},
+  {abbr:'BSK',name:'Basket',category:'Storage',color:0xc89d61,tags:['Natural','Handmade','Warm'],points:13}
+];
+
+let game = null;
+let scene = null;
+let designers = [];
+let items = [];
+let elapsed = 0;
+let running = false;
+let currentPhase = 0;
+let spawnTimer = null;
+let itemId = 0;
+
+const $ = id => document.getElementById(id);
+
+$('startBtn').addEventListener('click', startSimulation);
+$('resetBtn').addEventListener('click', resetSimulation);
+$('againBtn').addEventListener('click', () => { $('resultOverlay').classList.add('hidden'); startSimulation(); });
+
+function startSimulation(){
+  if(game) game.destroy(true);
+  designers=[]; items=[]; elapsed=0; currentPhase=0; running=true; itemId=0;
+  $('resultOverlay').classList.add('hidden');
+  $('timer').textContent=CONFIG.duration.toFixed(1);
+  $('phase').textContent='OPENING';
+  $('leader').textContent='—';
+  $('leaderboard').innerHTML='';
+  game = new Phaser.Game({
+    type: Phaser.AUTO,
+    width: CONFIG.width,
+    height: CONFIG.height,
+    parent: 'game-container',
+    backgroundColor: '#151515',
+    physics: {default:'matter', matter:{gravity:{x:0,y:0},debug:false,setBounds:{x:0,y:0,width:CONFIG.width,height:CONFIG.height}}},
+    scene:{preload,create,update}
+  });
+}
+
+function resetSimulation(){
+  running=false;
+  if(game){ game.destroy(true); game=null; }
+  designers=[]; items=[]; elapsed=0; currentPhase=0;
+  $('timer').textContent=CONFIG.duration.toFixed(1);
+  $('phase').textContent='READY'; $('leader').textContent='—'; $('leaderboard').innerHTML='';
+  $('resultOverlay').classList.add('hidden');
+}
+
+function preload(){}
+
+function create(){
+  scene=this;
+  this.matter.world.setBounds(0,0,CONFIG.width,CONFIG.height,24,true,true,true,true);
+  drawArena(this);
+  createDesigners(this);
+  for(let i=0;i<CONFIG.startingItems;i++) spawnItem(this);
+  this.matter.world.on('collisionstart', handleCollisions);
+  updateLeaderboard();
+}
+
+function drawArena(s){
+  const g=s.add.graphics();
+  g.lineStyle(6,0x555555,1); g.strokeRect(3,3,CONFIG.width-6,CONFIG.height-6);
+  g.lineStyle(1,0x252525,1);
+  for(let x=80;x<CONFIG.width;x+=80) g.lineBetween(x,8,x,CONFIG.height-8);
+  for(let y=80;y<CONFIG.height;y+=80) g.lineBetween(8,y,CONFIG.width-8,y);
+  const title=s.add.text(18,15,'DESIGN ARENA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#777',letterSpacing:2});
+  title.setDepth(20);
+}
+
+function createDesigners(s){
+  DESIGNERS.forEach((def,i)=>{
+    const x=150+i*210, y=130+(i%2)*300;
+    const circle=s.add.circle(x,y,CONFIG.designerRadius,def.color,1);
+    circle.setStrokeStyle(3,0xffffff,0.65);
+    s.matter.add.gameObject(circle,{shape:{type:'circle',radius:CONFIG.designerRadius},friction:0,frictionAir:0.003,restitution:0.95,density:0.002});
+    circle.body.setVelocity(Phaser.Math.Between(-180,180),Phaser.Math.Between(-180,180));
+    const label=s.add.text(x,y,def.short,{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:def.name==='Minimalist'?'#111':'#fff'}).setOrigin(.5);
+    const designer={...def,gameObject:circle,label,score:0,inventory:[],target:null,steeringStrength:0.7+Math.random()*.5,randomness:0.28+Math.random()*.28};
+    circle.designer=designer; designers.push(designer);
+  });
+}
+
+function spawnItem(s, rare=false){
+  if(items.length>=100) return;
+  const base=Phaser.Utils.Array.GetRandom(ITEM_TYPES);
+  const type={...base,tags:[...base.tags],rare};
+  if(rare){
+    type.points+=Phaser.Math.Between(8,18);
+    type.tags.push(Phaser.Utils.Array.GetRandom(['Decorative','Colorful','Natural','Blue','White','Patterned']));
+  }
+  const x=Phaser.Math.Between(55,CONFIG.width-55), y=Phaser.Math.Between(55,CONFIG.height-55);
+  const rect=s.add.rectangle(x,y,CONFIG.itemSize,CONFIG.itemSize,type.color,1);
+  rect.setStrokeStyle(2,rare?0xffd54a:0x222222,1);
+  s.matter.add.gameObject(rect,{shape:{type:'rectangle',width:CONFIG.itemSize,height:CONFIG.itemSize},friction:0.02,frictionAir:0.01,restitution:0.45,density:0.001});
+  rect.body.setVelocity(Phaser.Math.Between(-35,35),Phaser.Math.Between(-35,35));
+  const label=s.add.text(x,y,type.abbr,{fontFamily:'Arial',fontSize:'8px',fontStyle:'bold',color:'#111'}).setOrigin(.5).setDepth(3);
+  const item={...type,id:++itemId,gameObject:rect,label,collected:false};
+  rect.item=item; items.push(item);
+}
+
+function scoreItem(designer,item){
+  let score=item.points;
+  for(const tag of item.tags) score += designer.weights[tag] || 0;
+  if(item.category==='Furniture' && currentPhase>=5) score=Math.round(score*.5);
+  if(currentPhase===4 && item.tags.includes('Blue')) score*=2;
+  if(currentPhase===4 && item.tags.includes('Natural')) score=Math.round(score*1.25);
+  if(currentPhase>=5 && item.tags.includes('Natural')) score*=3;
+  return Math.round(score);
+}
+
+function chooseTarget(designer){
+  let best=null,bestScore=-Infinity;
+  for(const item of items){
+    if(item.collected || !item.gameObject.active) continue;
+    const dx=item.gameObject.x-designer.gameObject.x,dy=item.gameObject.y-designer.gameObject.y;
+    const distance=Math.hypot(dx,dy);
+    if(distance>CONFIG.attractionRange) continue;
+    const desirability=scoreItem(designer,item)-distance*0.025+Math.random()*8;
+    if(desirability>bestScore){bestScore=desirability;best=item;}
+  }
+  designer.target=best;
+}
+
+function steerDesigner(designer){
+  const body=designer.gameObject.body;
+  if(!body) return;
+  if(!designer.target || designer.target.collected || !designer.target.gameObject.active || Math.random()<0.015) chooseTarget(designer);
+  const angle=Phaser.Math.FloatBetween(0,Math.PI*2);
+  let ax=Math.cos(angle)*designer.randomness*CONFIG.steeringStrength;
+  let ay=Math.sin(angle)*designer.randomness*CONFIG.steeringStrength;
+  if(designer.target){
+    const dx=designer.target.gameObject.x-designer.gameObject.x;
+    const dy=designer.target.gameObject.y-designer.gameObject.y;
+    const dist=Math.hypot(dx,dy)||1;
+    const pull=Math.min(1,dist/120)*CONFIG.steering*designer.steeringStrength;
+    ax+=(dx/dist)*pull; ay+=(dy/dist)*pull;
+  }
+  body.velocity.x += ax; body.velocity.y += ay;
+  const speed=Math.hypot(body.velocity.x,body.velocity.y);
+  if(speed<55){ const kick=Phaser.Math.FloatBetween(65,100); body.setVelocity(body.velocity.x+Math.cos(angle)*kick*.02,body.velocity.y+Math.sin(angle)*kick*.02); }
+  if(speed>CONFIG.maxSpeed){ const scale=CONFIG.maxSpeed/speed; body.setVelocity(body.velocity.x*scale,body.velocity.y*scale); }
+}
+
+function handleCollisions(event){
+  if(!running) return;
+  for(const pair of event.pairs){
+    const a=pair.bodyA.gameObject,b=pair.bodyB.gameObject;
+    if(!a||!b) continue;
+    let designer=null,item=null;
+    if(a.designer&&b.item){designer=a.designer;item=b.item;}
+    else if(b.designer&&a.item){designer=b.designer;item=a.item;}
+    if(designer&&item&&!item.collected) collectItem(designer,item);
+  }
+}
+
+function collectItem(designer,item){
+  item.collected=true;
+  const points=scoreItem(designer,item);
+  designer.score+=points;
+  designer.inventory.push({abbr:item.abbr,name:item.name,points});
+  designer.target=null;
+  item.gameObject.setActive(false); item.label.setActive(false);
+  if(item.gameObject.body) item.gameObject.body.isSensor=true;
+  showPopup(item.gameObject.x,item.gameObject.y,points);
+  updateLeaderboard();
+}
+
+function showPopup(x,y,points){
+  const positive=points>=0;
+  const text=scene.add.text(x,y,`${points>=0?'+':''}${points}`,{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:positive?'#ffffff':'#ff7777',stroke:'#111',strokeThickness:4}).setOrigin(.5).setDepth(50);
+  scene.tweens.add({targets:text,y:y-38,alpha:0,duration:650,ease:'Cubic.easeOut',onComplete:()=>text.destroy()});
+}
+
+function phaseName(){return ['OPENING','GATHERING','ACCELERATION','RARE ITEMS','RULE CHAOS','ITEM FLOOD'][currentPhase]||'FINAL';}
+
+function advancePhase(phase){
+  currentPhase=phase;
+  $('phase').textContent=phaseName();
+  if(phase===1) for(let i=0;i<10;i++) spawnItem(scene);
+  if(phase===2) for(let i=0;i<12;i++) spawnItem(scene);
+  if(phase===3) for(let i=0;i<8;i++) spawnItem(scene,true);
+  if(phase===4) for(let i=0;i<14;i++) spawnItem(scene,true);
+  if(phase===5) for(let i=0;i<45;i++) spawnItem(scene,Math.random()<.3);
+}
+
+function update(time,delta){
+  if(!running) return;
+  elapsed+=delta/1000;
+  const remaining=Math.max(0,CONFIG.duration-elapsed);
+  $('timer').textContent=remaining.toFixed(1);
+  const desiredPhase=Math.min(5,Math.floor(elapsed/10));
+  if(desiredPhase!==currentPhase) advancePhase(desiredPhase);
+  designers.forEach(steerDesigner);
+  designers.forEach(d=>{d.label.setPosition(d.gameObject.x,d.gameObject.y);});
+  items.forEach(item=>{if(!item.collected)item.label.setPosition(item.gameObject.x,item.gameObject.y);});
+  if(Math.random()<0.02) updateLeaderboard();
+  if(elapsed>=CONFIG.duration) finishSimulation();
+}
+
+function updateLeaderboard(){
+  const sorted=[...designers].sort((a,b)=>b.score-a.score);
+  const leader=sorted[0];
+  $('leader').textContent=leader?leader.name:'—';
+  $('leaderboard').innerHTML=sorted.map((d,i)=>`<div class="standing ${i===0?'leader':''}"><span class="dot" style="background:${d.css}"></span><span class="standing-name">${d.name}</span><strong class="standing-score">${d.score}</strong></div>`).join('');
+}
+
+function finishSimulation(){
+  if(!running)return;
+  running=false;
+  if(spawnTimer)clearInterval(spawnTimer);
+  designers.forEach(d=>{if(d.gameObject.body)d.gameObject.body.setVelocity(0,0);});
+  updateLeaderboard();
+  const winner=[...designers].sort((a,b)=>b.score-a.score)[0];
+  $('winnerName').textContent=winner.name;
+  $('winnerScore').textContent=winner.score;
+  const top=winner.inventory.sort((a,b)=>b.points-a.points).slice(0,5);
+  $('topItems').innerHTML=top.length?top.map(x=>`<li><strong>${x.abbr}</strong> ${x.name} — ${x.points>0?'+':''}${x.points}</li>`).join(''):'<li>No furniture survived the encounter.</li>';
+  $('resultOverlay').classList.remove('hidden');
+}
