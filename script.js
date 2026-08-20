@@ -4,7 +4,7 @@ const CONFIG = {
   duration: 60,
 
   // Developer tuning: movement is deliberately physics-first.
-  cruiseSpeed: 34,
+  cruiseSpeed: 14,
   steeringStrength: 0.055,
   randomSteering: 0.018,
   attractionRange: 300,
