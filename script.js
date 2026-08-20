@@ -24,10 +24,10 @@ const CONFIG = {
 };
 
 const DESIGNERS = [
-  { name:'Rustic', short:'RUS', color:0x9a6338, css:'#9a6338', cruiseSpeed:14, steeringStrength:0.055, randomSteering:0.018, targetPersistence:0.82, targetRange:300, reconsiderInterval:1.7, disruptionChance:0.20, weights:{Wood:15,Natural:10,Handmade:8,Warm:7,Plastic:-10,Blue:3,Decorative:2} },
-  { name:'Minimalist', short:'MIN', color:0xf2f2f2, css:'#f2f2f2', cruiseSpeed:14, steeringStrength:0.035, randomSteering:0.008, targetPersistence:0.94, targetRange:280, reconsiderInterval:2.4, disruptionChance:0.15, weights:{Simple:15,Neutral:12,Clean:10,Wood:3,Decorative:-4,Patterned:-3,Colorful:-4,Plastic:2} },
-  { name:'Maximalist', short:'MAX', color:0x9b55d6, css:'#9b55d6', cruiseSpeed:14, steeringStrength:0.095, randomSteering:0.038, targetPersistence:0.48, targetRange:320, reconsiderInterval:0.95, disruptionChance:0.30, weights:{Decorative:15,Colorful:12,Patterned:11,Handmade:5,Simple:2,Neutral:-2,Clean:-1,Plastic:4} },
-  { name:'Coastal', short:'COA', color:0x43a9e8, css:'#43a9e8', cruiseSpeed:14, steeringStrength:0.06, randomSteering:0.018, targetPersistence:0.78, targetRange:300, reconsiderInterval:1.7, disruptionChance:0.22, weights:{Blue:15,White:10,Natural:9,Light:9,Clean:3,Wood:2,Dark:-8,Plastic:-3} }
+  { name:'Rustic', short:'RUS', color:0x9a6338, css:'#9a6338', cruiseSpeed:6, steeringStrength:0.055, randomSteering:0.018, targetPersistence:0.82, targetRange:300, reconsiderInterval:1.7, disruptionChance:0.20, weights:{Wood:15,Natural:10,Handmade:8,Warm:7,Plastic:-10,Blue:3,Decorative:2} },
+  { name:'Minimalist', short:'MIN', color:0xf2f2f2, css:'#f2f2f2', cruiseSpeed:8, steeringStrength:0.035, randomSteering:0.008, targetPersistence:0.94, targetRange:280, reconsiderInterval:2.4, disruptionChance:0.15, weights:{Simple:15,Neutral:12,Clean:10,Wood:3,Decorative:-4,Patterned:-3,Colorful:-4,Plastic:2} },
+  { name:'Maximalist', short:'MAX', color:0x9b55d6, css:'#9b55d6', cruiseSpeed:4, steeringStrength:0.095, randomSteering:0.038, targetPersistence:0.48, targetRange:320, reconsiderInterval:0.95, disruptionChance:0.30, weights:{Decorative:15,Colorful:12,Patterned:11,Handmade:5,Simple:2,Neutral:-2,Clean:-1,Plastic:4} },
+  { name:'Coastal', short:'COA', color:0x43a9e8, css:'#43a9e8', cruiseSpeed:10, steeringStrength:0.06, randomSteering:0.018, targetPersistence:0.78, targetRange:300, reconsiderInterval:1.7, disruptionChance:0.22, weights:{Blue:15,White:10,Natural:9,Light:9,Clean:3,Wood:2,Dark:-8,Plastic:-3} }
 ];
 
 const ITEM_TYPES = [
